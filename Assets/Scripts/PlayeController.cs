@@ -1,3 +1,4 @@
+using System.Collections;
 using UnityEngine;
 using TMPro;
 using UnityEngine.SceneManagement;
@@ -28,8 +29,8 @@ public class PlatformController : MonoBehaviour
 
     [Header("Death Settings")]
     [SerializeField] private GameObject bloodParticlePrefab;
-    [SerializeField] private float deathDelay = 0f; // Set > 0 if you want a death animation to play first
-
+    [SerializeField] private float deathDelay = 0f;
+    [SerializeField] private float particleLifetime = 1.5f;
 
     // Input Actions - using your PlayerActionMap asset
     private PlayerActionMap inputActions;
@@ -66,22 +67,18 @@ public class PlatformController : MonoBehaviour
 
     private void OnEnable()
     {
-        // Enable input actions
         moveAction.Enable();
         jumpAction.Enable();
 
-        // Subscribe to input events
         jumpAction.performed += OnJumpPerformed;
         jumpAction.canceled += OnJumpCanceled;
     }
 
     private void OnDisable()
     {
-        // Unsubscribe from input events
         jumpAction.performed -= OnJumpPerformed;
         jumpAction.canceled -= OnJumpCanceled;
 
-        // Disable input actions
         moveAction.Disable();
         jumpAction.Disable();
     }
@@ -91,7 +88,7 @@ public class PlatformController : MonoBehaviour
         // Skip input handling if dead
         if (isDead) return;
 
-        // Read movement input from YOUR configured Move action
+        // Read movement input
         moveInput = moveAction.ReadValue<Vector2>();
 
         // Check if grounded
@@ -120,7 +117,6 @@ public class PlatformController : MonoBehaviour
     {
         if (groundCheckPoint != null)
         {
-            // Ground check using circle cast at ground check point
             Collider2D[] colliders = Physics2D.OverlapCircleAll(
                 groundCheckPoint.position,
                 groundCheckRadius,
@@ -130,7 +126,6 @@ public class PlatformController : MonoBehaviour
         }
         else
         {
-            // Simple ground check using raycast from center
             RaycastHit2D hit = Physics2D.Raycast(
                 transform.position,
                 Vector2.down,
@@ -143,7 +138,6 @@ public class PlatformController : MonoBehaviour
 
     private void MovePlayer()
     {
-        // Apply horizontal movement
         rb.linearVelocity = new Vector2(
             moveInput.x * moveSpeed,
             rb.linearVelocity.y
@@ -152,15 +146,12 @@ public class PlatformController : MonoBehaviour
 
     private void ApplyJumpPhysics()
     {
-        // Better jump physics (variable jump height)
         if (rb.linearVelocity.y < 0)
         {
-            // Falling - increase gravity
             rb.linearVelocity += Vector2.up * Physics2D.gravity.y * (fallMultiplier - 1) * Time.deltaTime;
         }
         else if (rb.linearVelocity.y > 0 && !isJumping)
         {
-            // Jump button released early - reduce jump height
             rb.linearVelocity += Vector2.up * Physics2D.gravity.y * (lowJumpMultiplier - 1) * Time.deltaTime;
         }
     }
@@ -169,10 +160,8 @@ public class PlatformController : MonoBehaviour
     {
         if (animator != null)
         {
-            // Set IsOnGround parameter - drives the jump transition
             animator.SetBool("IsOnGround", isGrounded);
 
-            // Set IsWalking only when grounded (so jump anim takes priority via AnyState)
             bool isWalking = Mathf.Abs(moveInput.x) > 0.01f;
             animator.SetBool("IsWalking", isWalking);
         }
@@ -180,7 +169,6 @@ public class PlatformController : MonoBehaviour
 
     private void UpdateFacingDirection()
     {
-        // Only update facing when there's actual horizontal input
         if (moveInput.x > 0.01f && !facingRight)
         {
             Flip();
@@ -195,11 +183,6 @@ public class PlatformController : MonoBehaviour
     {
         facingRight = !facingRight;
 
-        // Use localScale if you prefer this method instead of flipX:
-        // Vector3 scale = transform.localScale;
-        // scale.x *= -1;
-        // transform.localScale = scale;
-
         if (spriteRenderer != null)
         {
             spriteRenderer.flipX = !facingRight;
@@ -212,7 +195,6 @@ public class PlatformController : MonoBehaviour
 
         if (isGrounded)
         {
-            // Apply jump force
             rb.linearVelocity = new Vector2(rb.linearVelocity.x, jumpForce);
             isJumping = true;
         }
@@ -223,7 +205,6 @@ public class PlatformController : MonoBehaviour
         isJumping = false;
     }
 
-    // Visual debug for ground check
     private void OnDrawGizmosSelected()
     {
         if (groundCheckPoint != null)
@@ -265,33 +246,38 @@ public class PlatformController : MonoBehaviour
                 Quaternion.identity
             );
 
-            // Auto-destroy the particle after its duration
-            // (adjust 1.5f to match your particle's longest lifetime)
-            Destroy(blood, 1.5f);
+            Destroy(blood, particleLifetime);
         }
 
-        // Disable visuals so only the particle shows
+        // Hide the sprite so only the blood shows
         if (spriteRenderer != null)
         {
             spriteRenderer.enabled = false;
         }
 
-        // Destroy the player and reload after a delay (0 = immediate)
+        // Reload the scene from a coroutine so nothing gets cancelled
+        StartCoroutine(DeathRoutine());
+    }
+
+    private IEnumerator DeathRoutine()
+    {
+        // Wait for the death delay (0 = immediate)
         if (deathDelay > 0f)
         {
-            Destroy(gameObject, deathDelay);
-            Invoke(nameof(ReloadCurrentScene), deathDelay);
+            yield return new WaitForSeconds(deathDelay);
         }
-        else
-        {
-            Destroy(gameObject);
-            ReloadCurrentScene();
-        }
+
+        // Reload the scene FIRST, while this script is still alive
+        ReloadCurrentScene();
+
+        // Then destroy the player (it's already gone after scene reload,
+        // but this keeps things clean if the reload is delayed)
+        Destroy(gameObject);
     }
 
     public void ReloadCurrentScene()
     {
         string currentSceneName = SceneManager.GetActiveScene().name;
-        SceneManager.LoadSceneAsync(currentSceneName);
+        SceneManager.LoadScene(currentSceneName);
     }
 }
