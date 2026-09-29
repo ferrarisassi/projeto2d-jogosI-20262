@@ -142,3 +142,4 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: cd3157b18be0af44980761369ba2da65, type: 3}
   m_Name: 
   m_EditorClassIdentifier: '::'
+  pickupParticlePrefab: {fileID: 1136552620323562337, guid: afb17e254ca385a45ba0ebcc58abdcdf, type: 3}
